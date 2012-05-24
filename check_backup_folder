@@ -3,28 +3,30 @@
 # Written by Alexis Bezverkhyy <alexis@grapsus.net> in july 2010
 # This is free and unencumbered software released into the public domain.
 # For more information, please refer to <http://unlicense.org/>
- 
+#
+# Small tweaks by Edoardo Causarano <e.causarano@onehippo.com> 
  
 function PRINT_USAGE(){
   echo "This Nagios plugin checks backup folders :
   -d DIRECTORY  the directory to search for backup files
   -p PATTERN  an optionnal pattern for backup files
-  -t HOURS  maximal age in hours for the latest backup before a warning is issued
-  -T HOURS  maximal age in hours for the latest backup before a critical alert is issued
-  -s KBYTES maximal size in kilo bytes for the latest backup before a warning is issued
-  -S KBYTES maximal size in kilo bytes for the latest backup before a critical alert is issued
+  -t HOURS  maximum age in hours for the latest backup before a warning is issued
+  -T HOURS  maximum age in hours for the latest backup before a critical alert is issued
+  -s KBYTES minimum size in kilo bytes for the latest backup before a warning is issued
+  -S KBYTES minimum size in kilo bytes for the latest backup before a critical alert is issued
+  -a GZ|BZ  whether to test for compressed archive integrity (gzip, bzip) 
   -h    prints out this help
 You must at least specify a directory and a minimal size or a minimal age."
   exit 0
 }
  
-WTIME=0;CTIME=0;WSIZE=0;CSIZE=0;DIR='';PATTERN=''
+WTIME=0;CTIME=0;WSIZE=0;CSIZE=0;DIR='';PATTERN='';AT=''
 declare -i CTIME 
 declare -i WTIME
 declare -i CSIZE
 declare -i WSIZE
 while true ; do
-  getopts 't:T:s:S:d:p:h' OPT 
+  getopts 't:T:s:S:d:p:ha:' OPT 
   if [ "$OPT" = '?' ] ; then break; fi; 
   case "$OPT" in
     "t") WTIME="$OPTARG";;
@@ -33,6 +35,7 @@ while true ; do
     "S") CSIZE="$OPTARG";;
     "d") DIR="$OPTARG";;
     "p") PATTERN="$OPTARG";;
+    "a") AT="$OPTARG";;
     "h") PRINT_USAGE;;
   esac
 done
@@ -74,7 +77,23 @@ if [ "$WSIZE" -gt 0 -a "$SIZE" -lt "$WSIZE" ] ; then
   echo "WARNING - $FILENAME is too small ($SIZE kb)"  
   exit 1
 fi
- 
+
+if [ "$AT" = "gz" -o "$AT" = "GZ" ] ; then
+  gzip -t $DIR/$FILENAME  > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+    echo "CRITICAL - $FILENAME is corrupt!"
+    exit 1
+  fi
+fi
+
+if [ "$AT" = "bz" -o "$AT" = "BZ" ] ; then
+  bzip -t $DIR/$FILENAME > /dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+    echo "CRITICAL - $FILENAME is corrupt!"
+    exit 1
+  fi
+fi
+
 echo "OK - $FILENAME ($AGE hours old, $SIZE kb)"
 exit 0
 
